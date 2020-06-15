@@ -61,45 +61,24 @@ def main(args):
 													  train_labels,
 													  test_size=0.2,
 													  shuffle=True)
-	if args.ensemble:
-		models = []
-		for i in range(args.num_models):
-			model = Model(
-				num_hidden=args.num_hidden,
-				num_features=6,
-				num_layers=args.num_layers,
-				num_labels=2,
-				dropout=args.dropout)
-			if args.cuda:
-				model.cuda()
-			train(model,
-				  (train_x, train_y),
-				  (dev_x, dev_y),
-				  lr=args.lr,
-				  num_epochs=args.num_epochs,
-				  batch_size=args.batch_size,
-          size_prop=args.size_prop,
-				  cuda=args.cuda)
-			models.append(model)
-		ens = EnsembleModel(models)
-		evaluate(ens, (dev_x, dev_y), cuda=args.cuda)
-	else:
-		model = Model(
-			num_hidden=args.num_hidden,
-			num_features=6,
-			num_layers=args.num_layers,
-			num_labels=2,
-			dropout=args.dropout)
-		if args.cuda:
-			model.cuda()
+	model = Model(
+		num_hidden=args.num_hidden,
+		num_features=6,
+		num_layers=args.num_layers,
+		num_labels=2,
+		dropout=args.dropout)
+	if args.cuda:
+		model.cuda()
 
-		train(model,
-			  (train_x, train_y),
-			  (dev_x, dev_y),
-			  lr=args.lr,
-			  num_epochs=args.num_epochs,
-			  batch_size=args.batch_size,
-			  cuda=args.cuda)
+	train(model,
+		  (train_x, train_y),
+		  (dev_x, dev_y),
+		  lr=args.lr,
+		  num_epochs=args.num_epochs,
+		  batch_size=args.batch_size,
+		  cuda=args.cuda)
+
+	torch.save(model.state_dict(), args.model_path)
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -112,9 +91,10 @@ if __name__ == '__main__':
 	parser.add_argument('--batch_size', type=int, default=8)
 	parser.add_argument('--lr', type=float, default=1e-3)
 	parser.add_argument('--cuda', action='store_true')
-	parser.add_argument('--ensemble', action='store_true')
-	parser.add_argument('--num_models', type=int, default=10)
-	parser.add_argument('--size_prop', type=float, default=1.0)
+	parser.add_argument('--model_path', type=str, default='model.bin')
+	# parser.add_argument('--ensemble', action='store_true')
+	# parser.add_argument('--num_models', type=int, default=10)
+	# parser.add_argument('--size_prop', type=float, default=1.0)
 
 	args = parser.parse_args()
 	main(args)

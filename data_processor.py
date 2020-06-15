@@ -24,7 +24,7 @@ class DataProcessor:
 		data = []
 		label = []
 
-		for i, fname in enumerate(os.listdir(train_dir)):
+		for i, fname in enumerate(sorted(os.listdir(train_dir))):
 			df = pd.read_csv(os.path.join(train_dir, fname))
 			data.append(df.values[:, 1:]) #フレーム以外の全て
 			label.append((0 if i < 5 else 1))
