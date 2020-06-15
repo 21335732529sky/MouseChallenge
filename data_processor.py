@@ -53,20 +53,21 @@ class DataProcessor:
 
 		return new_data, new_labels
 
-def generate_batch(inputs, labels, batch_size=32, shuffle=True, cuda=False):
+def generate_batch(inputs, labels, batch_size=32, shuffle=True, cuda=False, size_prop=1.0):
 	idx = list(range(len(inputs)))
 	if shuffle:
 		random.shuffle(idx)
+	idx = idx[:int(len(idx) * size_prop)]
 	c = 0
-	while c < len(inputs):
+	while c < len(idx):
 		bi = idx[c:c+batch_size]
 		bx = [inputs[i] for i in bi]
 		by = [labels[i] for i in bi]
 		bx = torch.tensor(bx).type(torch.FloatTensor)
 		by = torch.tensor(by)
 		if cuda:
-			bx.cuda()
-			by.cuda()
+			bx = bx.cuda()
+			by = by.cuda()
 		c += batch_size
 
 		yield bx, by

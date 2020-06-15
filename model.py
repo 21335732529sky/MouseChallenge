@@ -34,3 +34,21 @@ class Model(torch.nn.Module):
 		
 		return F.softmax(logits, dim=-1)
 
+class EnsembleModel:
+	def __init__(self, models):
+		self.models = models
+
+	def predict(self, inputs, vote='soft'):
+		preds = [F.softmax(model.predict(inputs), dim=-1) for model in self.models]
+		if vote == 'soft':
+			return sum(preds) / len(preds)
+		else:
+			one_hot = [F.one_hot(pred.argmax(dim=-1), num_classes=pred.shape[-1]) for pred in preds]
+			return sum(one_hot) / len(one_hot)
+
+	def eval(self):
+		[model.eval() for model in self.models]
+
+	def train(self):
+		[model.train() for model in self.models]
+

@@ -1,18 +1,19 @@
 from data_processor import DataProcessor, generate_batch
-from model import Model
+from model import Model, EnsembleModel
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 import torch
 import argparse
 
-def evaluate(model, dataset):
+def evaluate(model, dataset, cuda=False):
 	model.eval()
 	preds = []
 	labels = []
-	for bx, by in generate_batch(*dataset, shuffle=False):
+	for bx, by in generate_batch(*dataset, shuffle=False, cuda=cuda):
 		prediction = model.predict(bx).argmax(dim=-1)
 		if prediction.is_cuda:
 			prediction = prediction.cpu()
+			by = by.cpu()
 		preds.extend(prediction)
 		labels.extend(by)
 
@@ -29,12 +30,14 @@ def train(model,
 		  dataset_dev,
 		  lr=1e-3,
 		  batch_size=32,
-		  num_epochs=5):
+		  num_epochs=5,
+		  cuda=False,
+      size_prop=1.0):
 	optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 	steps = 0
 
 	for i in range(num_epochs):
-		for bx, by in generate_batch(*dataset_train, batch_size=batch_size):
+		for bx, by in generate_batch(*dataset_train, batch_size=batch_size, cuda=cuda, size_prop=size_prop):
 			optimizer.zero_grad()
 			loss = model(bx, by)
 			loss.backward()
@@ -45,32 +48,58 @@ def train(model,
 				loss_value = loss_value.cpu()
 			print('\rstep: {}, loss = {:.5f}'.format(steps, loss_value.numpy()), end='')
 		print('')
-		evaluate(model, dataset_dev)
+		evaluate(model, dataset_dev, cuda=cuda)
 
 
 
 def main(args):
-	model = Model(
-		num_hidden=args.num_hidden,
-		num_features=6,
-		num_layers=args.num_layers,
-		num_labels=2,
-		dropout=args.dropout)
 	dp = DataProcessor(
 		train_dir=args.train_dir,
 		test_dir=args.test_dir)
-
 	train_data, train_labels = dp.get_train_data()
 	train_x, dev_x, train_y, dev_y = train_test_split(train_data,
 													  train_labels,
 													  test_size=0.2,
 													  shuffle=True)
-	train(model,
-		  (train_x, train_y),
-		  (dev_x, dev_y),
-		  lr=args.lr,
-		  num_epochs=args.num_epochs,
-		  batch_size=args.batch_size)
+	if args.ensemble:
+		models = []
+		for i in range(args.num_models):
+			model = Model(
+				num_hidden=args.num_hidden,
+				num_features=6,
+				num_layers=args.num_layers,
+				num_labels=2,
+				dropout=args.dropout)
+			if args.cuda:
+				model.cuda()
+			train(model,
+				  (train_x, train_y),
+				  (dev_x, dev_y),
+				  lr=args.lr,
+				  num_epochs=args.num_epochs,
+				  batch_size=args.batch_size,
+          size_prop=args.size_prop,
+				  cuda=args.cuda)
+			models.append(model)
+		ens = EnsembleModel(models)
+		evaluate(ens, (dev_x, dev_y), cuda=args.cuda)
+	else:
+		model = Model(
+			num_hidden=args.num_hidden,
+			num_features=6,
+			num_layers=args.num_layers,
+			num_labels=2,
+			dropout=args.dropout)
+		if args.cuda:
+			model.cuda()
+
+		train(model,
+			  (train_x, train_y),
+			  (dev_x, dev_y),
+			  lr=args.lr,
+			  num_epochs=args.num_epochs,
+			  batch_size=args.batch_size,
+			  cuda=args.cuda)
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -82,6 +111,10 @@ if __name__ == '__main__':
 	parser.add_argument('--dropout', type=float, default=.0)
 	parser.add_argument('--batch_size', type=int, default=8)
 	parser.add_argument('--lr', type=float, default=1e-3)
+	parser.add_argument('--cuda', action='store_true')
+	parser.add_argument('--ensemble', action='store_true')
+	parser.add_argument('--num_models', type=int, default=10)
+	parser.add_argument('--size_prop', type=float, default=1.0)
 
 	args = parser.parse_args()
 	main(args)
